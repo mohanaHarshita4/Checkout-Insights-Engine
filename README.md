@@ -8,7 +8,7 @@ As an extension of this project, I also designed and built the relational databa
 
 I picked three checkout problems that show up again and again in real online stores, and ran an A and B test on each one.
 
-1. Clear messaging vs unclear messaging (real data). Does showing users clear and complete information lead to more conversions compared to a plain, uninformative screen. This test uses a real public dataset from Kaggle with over half a million rows.
+1. Ad vs PSA exposure (real data). Does showing users a real ad lead to more conversions than showing a neutral public service announcement. This uses a public Kaggle dataset with 588,101 users.
 2. Guest checkout vs forced signup (simulated data). Does letting people check out without forcing them to make an account lead to more completed purchases.
 3. Short checkout form vs long checkout form (simulated data). Does a shorter form with fewer fields lead to more completed purchases compared to a long form.
 
@@ -22,7 +22,7 @@ Every test in this project uses a chi square test, since the outcome in each cas
 
 | Test | Groups compared | Result | Recommendation |
 |------|------------------|--------|-----------------|
-| Test 1 (real data) | plain screen vs clear messaging | statistically significant | ship the change |
+| Test 1 (real data) | PSA vs ad exposure | statistically significant | ship the change |
 | Test 2 (simulated) | forced signup vs guest checkout | statistically significant | ship the change |
 | Test 3 (simulated) | long form vs short form | statistically significant | ship the change |
 
