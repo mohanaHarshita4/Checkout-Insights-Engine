@@ -55,7 +55,7 @@ Python, pandas, scipy, matplotlib, inside a Jupyter notebook.
 
 
 ## Dashboard
-![Dashboard preview](./dashboard_summary.png)
+![Dashboard preview](./dashboard_summary.png?v=2)
 Interactive Power BI dashboard: [checkout_funnel_dashboard.pbix](./checkout_funnel_dashboard.pbix)
 
 ## Database backend extension
