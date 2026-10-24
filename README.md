@@ -1,73 +1,110 @@
-# Ecommerce-Checkout-Analytics-Platform
+# Checkout Insights Engine
 
-This project looks at three common problems people run into when they try to buy something online, and checks if fixing them actually leads to more people finishing their purchase, using real statistics instead of guessing. Alongside the analysis, I also built an interactive Power BI dashboard to visualize the results, with completion and conversion rates by group, sample sizes, and chi-square significance for each test, plus a summary page comparing all three.
+I started this project with a simple A/B test. Did showing people a real ad get them to buy more than showing them a public service announcement? It did. The ad group converted at 2.55% and the PSA group at 1.79%, across 588,101 real users.
 
-As an extension of this project, I also designed and built the relational database backend that a system like this would run on in production, along with a MongoDB store for unstructured data and a small Flask application layer connecting to it. The database actually stores the real results from the three A/B tests below, so the two halves of this project connect to each other, not just in writing. That part is covered further down in this README.
+But that number bothered me. It is an average over half a million people and I wanted to know if the ad was helping everyone a little, or a few people a lot. So I built a model to find out.
 
-## What this project does
+It turned out to be the second one. When I ranked users by how much the ad was predicted to help them, the top 20% accounted for almost all of the extra purchases. For the other 80%, the ad did basically nothing.
 
-I picked three common problems on the path to purchase in online stores, and ran an A and B test on each one.
+## What I found
 
-1. Ad vs PSA exposure (real data). Does showing users a real ad lead to more conversions than showing a neutral public service announcement. This uses a public Kaggle dataset with 588,101 users.
-2. Guest checkout vs forced signup (simulated data). Does letting people check out without forcing them to make an account lead to more completed purchases.
-3. Short checkout form vs long checkout form (simulated data). Does a shorter form with fewer fields lead to more completed purchases compared to a long form.
+| Question | What I did | What came out |
+|---|---|---|
+| Does the ad work on average? | Chi square test | Yes. 2.55% vs 1.79%, χ² = 54.0, p < 0.001 |
+| Can I predict who will buy? | Logistic regression I wrote in NumPy | ROC AUC 0.86, PR AUC 0.139 (random guessing gets 0.025) |
+| Who does the ad actually help? | Two model uplift approach | Top 20% of users: 4.07 point lift. Everyone else: about 0 |
+| Could that just be luck? | Bootstrap, 300 resamples | No. The 95% range is 3.22 to 5.06 points |
 
-Test 1 uses real user data. Test 2 and test 3 use simulated data, since companies do not publish this kind of internal experiment publicly. The completion rates used for the simulation are grounded in real published checkout research, not random guesses. All sources are listed inside the notebook.
+Every model number above comes from users the models never saw while training.
 
-## Method
+![Real ad effect by decile](./uplift_by_decile.png)
 
-Every test in this project uses a chi square test, since the outcome in each case is a yes or no answer, meaning did the person convert or complete checkout, or not. A chi square test is the correct choice for comparing two groups on a yes or no outcome. For each test I set up a clear hypothesis, defined the two groups, picked one metric to measure, ran the test, and wrote out a plain recommendation at the end, either ship the change or run it longer.
+## How it is built
 
-## Results
+The project has three notebooks. Each one picks up where the last one stopped.
 
-| Test | Groups compared | Result | Recommendation |
-|------|------------------|--------|-----------------|
-| Test 1 (real data) | PSA vs ad exposure | statistically significant | ship the change |
-| Test 2 (simulated) | forced signup vs guest checkout | statistically significant | ship the change |
-| Test 3 (simulated) | long form vs short form | statistically significant | ship the change |
+### 1. The A/B tests
 
-All three tests point in the same direction, a clearer, more flexible, and shorter checkout process leads to more people actually finishing their purchase.
+File: `Checkout_Funnel_AB_Testing.ipynb`
 
-## Tools used
+I ran three tests, each with a written hypothesis, a control group, a treatment group, and one yes or no outcome, so a chi square test fits every time.
 
-Python, pandas, scipy, matplotlib, inside a Jupyter notebook.
+| Test | Groups | Data | χ² |
+|---|---|---|---|
+| 1 | PSA vs ad | Real, Kaggle, 588,101 users | 54.0 |
+| 2 | Forced signup vs guest checkout | Simulated | 324.92 |
+| 3 | Long form vs short form | Simulated | 206.73 |
 
-## Files in this repo
+Companies do not publish their checkout experiments, so for Tests 2 and 3 I simulated the data using completion rates from published checkout research. The sources are in the notebook. Test 1 is real, but 96% of users were in the ad group and only 4% in the PSA group, so the PSA rate is less precise. I point this out in the notebook instead of hiding it.
 
-- Checkout_Funnel_AB_Testing.ipynb — the full notebook, with all the code, explanations, charts, and results
-- marketing_AB.csv — the real dataset used for test 1
-- test1_chart.png — a saved chart from test 1
-- test2_guest_checkout.csv — simulated dataset used for test 2
-- test2_chart.png — a saved chart from test 2
-- test3_form_length.csv — simulated dataset used for test 3
-- test3_chart.png — a saved chart from test 3
+### 2. Predicting who converts
 
-## Database backend (extension):
+File: `Conversion_Model_Logistic_Regression.ipynb`
 
-- schema.sql — MySQL schema: 9 tables covering customers, products, categories, inventory, promotions, orders, order items, and reviews
-- sample_data.sql — sample data to populate the schema
-- triggers_procedures.sql — inventory triggers, stored procedures for revenue and customer lifetime value reporting, and a transaction/concurrency demo
-- ab_test_results_addition.sql — a table holding the actual results from the three A/B tests above (real numbers, not placeholders), so the database and the         notebook are telling the same story.
-- mongodb_setup.js — MongoDB collections for review text and clickstream data (the unstructured companion store)
-- app.py — a small Flask application connecting to MySQL, with routes for low stock alerts, revenue by category, customer lifetime value, and the A/B test results
-- ERR1.png — the EER diagram for the schema
-- relational_algebra_queries.md — relational algebra expressions for the main queries, alongside their SQL equivalents
+I wrote logistic regression in NumPy instead of calling a library, using what I learned in CS 6140 Machine Learning at Northeastern. That means writing out the sigmoid, the cross entropy loss, its gradient, and the update rule for mini batch gradient descent myself. I used 5 fold cross validation to pick the regularization strength.
 
+A few choices I had to think about:
+
+- Only 2.5% of users ever buy. A model that just says "nobody buys" would be 97.5% accurate and completely useless, so I measured PR AUC and recall instead of accuracy.
+- Hour 23 and hour 0 are next to each other, but as plain numbers they look far apart. I turned the hour into sine and cosine so the model sees it as a circle.
+- Some users saw over 2,000 ads while most saw under 30, so I used the log of ad count to stop a few heavy users from pulling the model around.
+
+To make sure my math was right, I trained scikit learn on the same data and compared. My weights matched within 0.03.
+
+One result surprised me. Cross validation picked no regularization at all. With 10 features and 350,000 rows there is nothing to overfit, and I would rather test that than assume regularization always helps.
+
+### 3. Finding who the ad helps
+
+File: `Uplift_Model_Ad_Targeting.ipynb`
+
+This is the part I am proudest of. I trained two copies of my model, one only on people who saw the ad and one only on people who saw the PSA. For each user the difference between the two predictions is how much the ad is expected to change their chance of buying.
+
+The real test is whether that ranking holds up on new users. I split the held out users into 10 groups by predicted uplift and measured the actual ad vs PSA gap inside each. Since users were randomly assigned, that gap is a fair read of the true effect.
+
+The top group showed a 6.2 point lift the second group 2.2, and groups 3 through 10 were all close to zero. Showing the ad to just the top 10% would have kept 80% of the extra purchases.
+
+![Qini curve](./uplift_qini_curve.png)
+
+There is a catch, and I think it matters. The strongest feature is how many ads a person saw, which is counted during the experiment. More engaged people see more ads, so a company could not use this feature to pick targets in advance. A real version would need something known before the campaign starts, like past visits or past purchases.
 
 ## Dashboard
-![Dashboard preview](./dashboard_summary.png?v=2)
-Interactive Power BI dashboard: [checkout_funnel_dashboard.pbix](./checkout_funnel_dashboard.pbix)
 
-## Database backend extension
+![Dashboard overview](./dashboard_summary.png?v=2)
 
-The A/B testing notebook and dashboard above analyze checkout conversion from the data side, looking at what happens once a checkout attempt is logged. This extension builds the actual database a system like this would run on: a normalized MySQL schema for customers, products, orders and inventory, triggers and stored procedures for automatic inventory management and revenue reporting, a MongoDB store for review text and clickstream logs that don't fit a fixed schema, and a Flask application layer that connects to MySQL and runs the stored procedures through a browser.
+I built a Power BI dashboard with a page for each test and a summary page: conversion rates by group, sample sizes, and the chi square result for each. File: [checkout_funnel_dashboard.pbix](./checkout_funnel_dashboard.pbix)
 
+## Database and app
 
+I also wanted to see what the system behind a store like this would look like, so I designed the database for it in my CS 5200 class.
+
+- `schema.sql` has 9 MySQL tables for customers, products, categories (which can have subcategories), inventory, promotions, orders, order items, and reviews
+- `triggers_procedures.sql` lowers inventory automatically when an order comes in, blocks orders that would sell more than is in stock, and has stored procedures for monthly revenue and customer lifetime value
+- `ab_test_results_addition.sql` stores the real results of the three A/B tests, so the database and the notebooks agree
+- `mongodb_setup.js` holds review text and click events in MongoDB, since that data does not fit neatly into fixed tables
+- `app.py` is a small Flask app that runs the stored procedures from a browser
+- `ERR1.png` is the EER diagram, and `relational_algebra_queries.md` shows the relational algebra next to the SQL for the main queries
+
+To run the app:
+
+```
+pip install flask mysql-connector-python
+set DB_PASSWORD=your_mysql_password
+python app.py
+```
+
+Then go to `http://127.0.0.1:5000`. The password is read from an environment variable not written in the code.
+
+## Tools
+
+Python (NumPy, pandas, SciPy, scikit learn, Matplotlib), Jupyter, Power BI, MySQL, MongoDB, Flask
+
+## Data
+
+Test 1 and both models use the [Marketing A/B Testing dataset](https://www.kaggle.com/datasets/faviovaz/marketing-ab-testing) by FavioVaz on Kaggle. Tests 2 and 3 are simulated, as explained above.
 
 ## About me
 
-I am a graduate student at Northeastern University's Khoury College of Computer Science. I built this project to carry out A and B testing on some common issues faced by customers during the checkout process. I picked this topic because I have personally run into most of these problems myself while shopping online, and I wanted to see if there was real data behind why these small changes actually matter.
+I am a Master's student in Computer Science at Northeastern University's Khoury College in Boston. I picked checkout because I have personally given up on online orders over forced signups and long forms, and I wanted to see whether the data backed up that frustration. What I took away from this project is that "did it work" is only the first question. The more useful one is "who did it work for".
 
 GitHub: [github.com/mohanaHarshita4](https://github.com/mohanaHarshita4)
-
 LinkedIn: [linkedin.com/in/mohana-harshita](https://linkedin.com/in/mohana-harshita)
