@@ -6,7 +6,7 @@ As an extension of this project, I also designed and built the relational databa
 
 ## What this project does
 
-I picked three checkout problems that show up again and again in real online stores, and ran an A and B test on each one.
+I picked three common problems on the path to purchase in online stores, and ran an A and B test on each one.
 
 1. Ad vs PSA exposure (real data). Does showing users a real ad lead to more conversions than showing a neutral public service announcement. This uses a public Kaggle dataset with 588,101 users.
 2. Guest checkout vs forced signup (simulated data). Does letting people check out without forcing them to make an account lead to more completed purchases.
